@@ -8,10 +8,77 @@
             </h2>
             <p class="text-muted mb-0">Kelola dan telusuri seluruh koleksi pustaka civitas akademika IT Del.</p>
         </div>
-        <div>
+        <div class="d-flex gap-2">
+            <a href="{{ route('peminjaman.create') }}" class="btn btn-outline-del shadow-sm">
+                <i class="bi bi-arrow-left-right me-1"></i> Sirkulasi Pinjam
+            </a>
             <a href="{{ route('buku.create') }}" class="btn btn-del shadow-sm">
                 <i class="bi bi-plus-lg me-1"></i> Tambah Buku Baru
             </a>
+        </div>
+    </div>
+
+    <!-- Analytics Dashboard Cards (Fluent Query Builder DB::table) -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid var(--del-purple-700) !important;">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted small fw-semibold text-uppercase">Total Judul Buku</span>
+                            <h3 class="fw-bold mb-0 mt-1" style="color: var(--del-purple-800);">{{ number_format($stats['total_judul']) }}</h3>
+                        </div>
+                        <div class="rounded-circle p-3 d-flex align-items-center justify-content-center" style="background-color: var(--del-purple-100); width: 48px; height: 48px;">
+                            <i class="bi bi-journal-bookmark-fill fs-5" style="color: var(--del-purple-700);"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #10B981 !important;">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted small fw-semibold text-uppercase">Total Stok Fisik</span>
+                            <h3 class="fw-bold mb-0 mt-1 text-success">{{ number_format($stats['total_stok']) }} <small class="fs-6 text-muted fw-normal">eks</small></h3>
+                        </div>
+                        <div class="rounded-circle p-3 bg-success-subtle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                            <i class="bi bi-box-seam fs-5 text-success"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #F59E0B !important;">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted small fw-semibold text-uppercase">Sedang Dipinjam</span>
+                            <h3 class="fw-bold mb-0 mt-1 text-warning-emphasis">{{ number_format($stats['total_dipinjam']) }} <small class="fs-6 text-muted fw-normal">buku</small></h3>
+                        </div>
+                        <div class="rounded-circle p-3 bg-warning-subtle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                            <i class="bi bi-hourglass-split fs-5 text-warning-emphasis"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #3B82F6 !important;">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted small fw-semibold text-uppercase">Total Dikembalikan</span>
+                            <h3 class="fw-bold mb-0 mt-1 text-primary">{{ number_format($stats['total_dikembalikan']) }} <small class="fs-6 text-muted fw-normal">kali</small></h3>
+                        </div>
+                        <div class="rounded-circle p-3 bg-primary-subtle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                            <i class="bi bi-check2-circle fs-5 text-primary"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -50,6 +117,14 @@
                     @endif
                 </div>
             </form>
+            @if(session('last_buku_search') && !request('search'))
+                <div class="mt-2 small text-muted">
+                    <i class="bi bi-clock-history me-1"></i> Riwayat pencarian sesi sebelumnya:
+                    <a href="{{ route('buku.index', ['search' => session('last_buku_search')]) }}" class="text-decoration-none fw-semibold" style="color: var(--del-purple-700);">
+                        "{{ session('last_buku_search') }}"
+                    </a>
+                </div>
+            @endif
         </div>
     </div>
 
@@ -66,12 +141,13 @@
                 <thead class="table-light">
                     <tr class="text-secondary small text-uppercase">
                         <th style="width: 5%;" class="text-center">No</th>
-                        <th style="width: 15%;">ISBN</th>
-                        <th style="width: 25%;">Judul & Tahun</th>
-                        <th style="width: 15%;">Penulis & Penerbit</th>
-                        <th style="width: 15%;">Kategori</th>
+                        <th style="width: 14%;">ISBN</th>
+                        <th style="width: 23%;">Judul & Tahun</th>
+                        <th style="width: 14%;">Penulis & Penerbit</th>
+                        <th style="width: 14%;">Kategori</th>
                         <th style="width: 8%;" class="text-center">Stok</th>
-                        <th style="width: 17%;" class="text-center">Aksi</th>
+                        <th style="width: 8%;" class="text-center">Dipinjam</th>
+                        <th style="width: 14%;" class="text-center">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -114,6 +190,11 @@
                                 @endif
                             </td>
                             <td class="text-center">
+                                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-2 py-1" title="Jumlah transaksi peminjaman (withCount)">
+                                    <i class="bi bi-arrow-repeat me-1"></i>{{ $buku->peminjamans_count }}x
+                                </span>
+                            </td>
+                            <td class="text-center">
                                 <div class="btn-group btn-group-sm" role="group">
                                     <a href="{{ route('buku.show', $buku) }}" class="btn btn-outline-primary" title="Lihat Detail">
                                         <i class="bi bi-eye"></i>
@@ -135,7 +216,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="text-center py-5 text-muted">
+                            <td colspan="8" class="text-center py-5 text-muted">
                                 <i class="bi bi-inbox fs-1 text-secondary d-block mb-2"></i>
                                 <h6 class="fw-bold">Belum Ada Data Buku</h6>
                                 <p class="small mb-3">Tidak ada buku yang sesuai dengan kriteria pencarian atau belum ada data yang tersimpan.</p>

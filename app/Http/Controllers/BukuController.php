@@ -6,19 +6,25 @@ use App\Models\Buku;
 use App\Models\Kategori;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class BukuController extends Controller
 {
     /**
-     * Display a listing of books (with Eager Loading of kategori and Pagination).
+     * Display a listing of books (with Eager Loading, withCount peminjamans, and Pagination).
      */
     public function index(Request $request): View
     {
         $search = $request->query('search');
         $kategoriId = $request->query('kategori_id');
 
+        if ($request->filled('search')) {
+            session(['last_buku_search' => $request->search]);
+        }
+
         $bukus = Buku::with('kategori')
+            ->withCount('peminjamans')
             ->when($search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('judul', 'like', "%{$search}%")
@@ -36,7 +42,15 @@ class BukuController extends Controller
 
         $kategoris = Kategori::orderBy('nama_kategori')->get();
 
-        return view('buku.index', compact('bukus', 'kategoris', 'search', 'kategoriId'));
+        // Rekapitulasi Statistik Perpustakaan Menggunakan Fluent Query Builder (DB::table)
+        $stats = [
+            'total_judul' => DB::table('bukus')->count(),
+            'total_stok' => (int) DB::table('bukus')->sum('stok'),
+            'total_dipinjam' => DB::table('peminjamans')->where('status', 'dipinjam')->count(),
+            'total_dikembalikan' => DB::table('peminjamans')->where('status', 'dikembalikan')->count(),
+        ];
+
+        return view('buku.index', compact('bukus', 'kategoris', 'search', 'kategoriId', 'stats'));
     }
 
     /**

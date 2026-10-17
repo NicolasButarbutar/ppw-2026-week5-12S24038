@@ -4,8 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\Buku;
 use App\Models\Kategori;
+use App\Models\Peminjaman;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class SipusDelTest extends TestCase
@@ -18,8 +21,26 @@ class SipusDelTest extends TestCase
         $response->assertRedirect(route('buku.index'));
     }
 
+    public function test_guest_is_redirected_to_login_on_mutating_routes(): void
+    {
+        $response = $this->get(route('kategori.create'));
+        $response->assertRedirect(route('login'));
+
+        $response = $this->get(route('buku.create'));
+        $response->assertRedirect(route('login'));
+
+        $response = $this->get(route('peminjaman.index'));
+        $response->assertRedirect(route('login'));
+
+        $response = $this->get(route('peminjaman.create'));
+        $response->assertRedirect(route('login'));
+    }
+
     public function test_kategori_crud_lifecycle(): void
     {
+        $librarian = User::factory()->create();
+        $this->actingAs($librarian);
+
         // 1. Create form
         $response = $this->get(route('kategori.create'));
         $response->assertStatus(200);
@@ -74,6 +95,9 @@ class SipusDelTest extends TestCase
 
     public function test_buku_crud_lifecycle_and_validation(): void
     {
+        $librarian = User::factory()->create();
+        $this->actingAs($librarian);
+
         $kategori = Kategori::create([
             'kode_kategori' => 'KAT-RPL',
             'nama_kategori' => 'Rekayasa Perangkat Lunak',
@@ -180,13 +204,217 @@ class SipusDelTest extends TestCase
         $response = $this->get(route('buku.index'));
         $response->assertStatus(200);
 
-        // Without Eager Loading, 10 items would execute 1 (count) + 1 (buku items) + 10 (each kategori) + 1 (kategoris dropdown) = 13 queries.
-        // With Eager Loading (Buku::with('kategori')), it executes:
-        // 1. count(*) for pagination
-        // 2. select bukus limit 10
-        // 3. select kategoris where id in (...) (eager loading)
-        // 4. select all kategoris for dropdown filter
-        // Total query is strictly controlled (4 queries total, only 2 for the list + eager relation), completely preventing N+1.
-        $this->assertLessThanOrEqual(5, $queryCount, "Eager Loading failed: expected <= 5 queries, got {$queryCount}");
+        // Catalog query (pagination count + limit 10 items + eager load kategoris + dropdown kategoris = 4)
+        // Analytics Dashboard stats (4 DB::table queries: count, sum, count dipinjam, count dikembalikan = 4)
+        // Total query remains strictly constant O(1) regardless of number of books (8 queries total), preventing N+1.
+        $this->assertLessThanOrEqual(9, $queryCount, "Eager Loading failed: expected <= 9 queries, got {$queryCount}");
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | WEEK 6 TESTS: AUTHENTICATION, SESSIONS, COOKIES, & ACID TRANSACTIONS
+    |--------------------------------------------------------------------------
+    */
+
+    public function test_librarian_login_success_with_session_regeneration_and_cookie(): void
+    {
+        $user = User::create([
+            'name' => 'Pustakawan Del',
+            'email' => 'pustakawan@del.ac.id',
+            'password' => Hash::make('password123'),
+        ]);
+
+        $response = $this->post(route('login.post'), [
+            'email' => 'pustakawan@del.ac.id',
+            'password' => 'password123',
+        ]);
+
+        $response->assertRedirect(route('buku.index'));
+        $this->assertAuthenticatedAs($user);
+        $response->assertSessionHas('login_timestamp');
+        $response->assertCookie('del_last_user_email', 'pustakawan@del.ac.id');
+    }
+
+    public function test_librarian_login_fails_with_invalid_credentials(): void
+    {
+        $response = $this->from(route('login'))->post(route('login.post'), [
+            'email' => 'pustakawan@del.ac.id',
+            'password' => 'wrongpassword',
+        ]);
+
+        $response->assertRedirect(route('login'));
+        $response->assertSessionHas('error');
+        $this->assertGuest();
+    }
+
+    public function test_librarian_logout_invalidates_session_and_clears_auth(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $response = $this->post(route('logout'));
+        $response->assertRedirect(route('login'));
+        $this->assertGuest();
+    }
+
+    public function test_acid_book_borrowing_decrements_stock_and_creates_loan(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $kategori = Kategori::create([
+            'kode_kategori' => 'KAT-AI',
+            'nama_kategori' => 'Artificial Intelligence',
+        ]);
+
+        $buku = Buku::create([
+            'isbn' => '978-602-999-001-7',
+            'judul' => 'Kecerdasan Buatan Modern',
+            'penulis' => 'Dosen AI',
+            'penerbit' => 'Del Press',
+            'tahun_terbit' => 2025,
+            'kategori_id' => $kategori->id,
+            'stok' => 5,
+        ]);
+
+        $response = $this->post(route('peminjaman.store'), [
+            'buku_id' => $buku->id,
+            'nim_peminjam' => '12S24038',
+            'nama_peminjam' => 'Nicolas J Grace Butarbutar',
+            'durasi_hari' => 7,
+        ]);
+
+        $response->assertRedirect(route('peminjaman.index'));
+        $response->assertSessionHas('success');
+
+        // Mutasi atomik: Stok berkurang dari 5 menjadi 4
+        $this->assertEquals(4, $buku->fresh()->stok);
+
+        // Catatan peminjaman tersimpan
+        $this->assertDatabaseHas('peminjamans', [
+            'buku_id' => $buku->id,
+            'nim_peminjam' => '12S24038',
+            'nama_peminjam' => 'Nicolas J Grace Butarbutar',
+            'status' => 'dipinjam',
+        ]);
+    }
+
+    public function test_acid_book_borrowing_fails_and_rollbacks_when_stock_is_zero(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $kategori = Kategori::create([
+            'kode_kategori' => 'KAT-RPL',
+            'nama_kategori' => 'Rekayasa Perangkat Lunak',
+        ]);
+
+        $buku = Buku::create([
+            'isbn' => '978-602-999-000-0',
+            'judul' => 'Sistem Terdistribusi Lanjutan',
+            'penulis' => 'Chandro Pardede',
+            'penerbit' => 'Del Press',
+            'tahun_terbit' => 2024,
+            'kategori_id' => $kategori->id,
+            'stok' => 0, // Stok Habis!
+        ]);
+
+        $response = $this->post(route('peminjaman.store'), [
+            'buku_id' => $buku->id,
+            'nim_peminjam' => '12S24038',
+            'nama_peminjam' => 'Nicolas J Grace Butarbutar',
+            'durasi_hari' => 7,
+        ]);
+
+        // Ditolak dan di-rollback
+        $response->assertSessionHas('error');
+        $this->assertEquals(0, $buku->fresh()->stok);
+        $this->assertDatabaseMissing('peminjamans', [
+            'buku_id' => $buku->id,
+            'nim_peminjam' => '12S24038',
+        ]);
+    }
+
+    public function test_acid_book_borrowing_fails_if_same_nim_has_unreturned_book(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $kategori = Kategori::create([
+            'kode_kategori' => 'KAT-RPL',
+            'nama_kategori' => 'Rekayasa Perangkat Lunak',
+        ]);
+
+        $buku = Buku::create([
+            'isbn' => '978-602-111-222-3',
+            'judul' => 'Clean Architecture',
+            'penulis' => 'Robert C. Martin',
+            'penerbit' => 'Prentice Hall',
+            'tahun_terbit' => 2021,
+            'kategori_id' => $kategori->id,
+            'stok' => 3,
+        ]);
+
+        // Peminjaman pertama berhasil
+        $this->post(route('peminjaman.store'), [
+            'buku_id' => $buku->id,
+            'nim_peminjam' => '12S24038',
+            'nama_peminjam' => 'Nicolas J Grace Butarbutar',
+        ]);
+
+        $this->assertEquals(2, $buku->fresh()->stok);
+
+        // Peminjaman kedua oleh NIM yang sama untuk buku yang sama (harus ditolak!)
+        $response = $this->post(route('peminjaman.store'), [
+            'buku_id' => $buku->id,
+            'nim_peminjam' => '12S24038',
+            'nama_peminjam' => 'Nicolas J Grace Butarbutar',
+        ]);
+
+        $response->assertSessionHas('error');
+        // Stok tetap 2 (tidak berkurang lagi)
+        $this->assertEquals(2, $buku->fresh()->stok);
+    }
+
+    public function test_acid_book_return_increments_stock_and_updates_status(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $kategori = Kategori::create([
+            'kode_kategori' => 'KAT-RPL',
+            'nama_kategori' => 'Rekayasa Perangkat Lunak',
+        ]);
+
+        $buku = Buku::create([
+            'isbn' => '978-602-111-222-4',
+            'judul' => 'Refactoring',
+            'penulis' => 'Martin Fowler',
+            'penerbit' => 'Addison-Wesley',
+            'tahun_terbit' => 2020,
+            'kategori_id' => $kategori->id,
+            'stok' => 1,
+        ]);
+
+        $peminjaman = Peminjaman::create([
+            'kode_pinjam' => 'PINJ-TEST-001',
+            'buku_id' => $buku->id,
+            'nim_peminjam' => '12S24038',
+            'nama_peminjam' => 'Nicolas J Grace Butarbutar',
+            'tanggal_pinjam' => now()->toDateString(),
+            'tanggal_jatuh_tempo' => now()->addDays(7)->toDateString(),
+            'status' => 'dipinjam',
+        ]);
+
+        $response = $this->post(route('peminjaman.kembali', $peminjaman->id));
+        $response->assertSessionHas('success');
+
+        // Mutasi atomik: Stok buku bertambah dari 1 menjadi 2
+        $this->assertEquals(2, $buku->fresh()->stok);
+
+        // Status peminjaman diperbarui
+        $peminjaman->refresh();
+        $this->assertEquals('dikembalikan', $peminjaman->status);
+        $this->assertNotNull($peminjaman->tanggal_kembali);
     }
 }

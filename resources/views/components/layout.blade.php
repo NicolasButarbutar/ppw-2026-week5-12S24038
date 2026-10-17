@@ -153,14 +153,35 @@
                             <i class="bi bi-tags me-1"></i> Kategori Buku
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ request()->routeIs('peminjaman.*') ? 'active' : '' }}" href="{{ route('peminjaman.index') }}">
+                            <i class="bi bi-arrow-left-right me-1"></i> Peminjaman Buku
+                        </a>
+                    </li>
                 </ul>
                 <div class="d-flex align-items-center gap-2">
-                    <a href="{{ route('buku.create') }}" class="btn btn-warning btn-sm fw-bold shadow-sm">
-                        <i class="bi bi-plus-circle me-1"></i> Tambah Buku
-                    </a>
-                    <a href="{{ route('kategori.create') }}" class="btn btn-outline-light btn-sm fw-bold">
-                        <i class="bi bi-folder-plus me-1"></i> Tambah Kategori
-                    </a>
+                    @auth
+                        <div class="text-white text-end me-2 d-none d-md-block">
+                            <div class="fw-semibold small leading-tight"><i class="bi bi-person-circle text-warning me-1"></i>{{ Auth::user()->name }}</div>
+                            <span class="badge bg-warning text-dark py-0 px-2" style="font-size: 0.65rem;">Pustakawan Del</span>
+                        </div>
+                        <a href="{{ route('buku.create') }}" class="btn btn-warning btn-sm fw-bold shadow-sm">
+                            <i class="bi bi-plus-circle me-1"></i> Tambah Buku
+                        </a>
+                        <a href="{{ route('kategori.create') }}" class="btn btn-outline-light btn-sm fw-bold">
+                            <i class="bi bi-folder-plus me-1"></i> Tambah Kategori
+                        </a>
+                        <form action="{{ route('logout') }}" method="POST" class="d-inline">
+                            @csrf
+                            <button type="submit" class="btn btn-outline-light btn-sm fw-bold" title="Logout dari Sesi">
+                                <i class="bi bi-box-arrow-right me-1"></i> Logout
+                            </button>
+                        </form>
+                    @else
+                        <a href="{{ route('login') }}" class="btn btn-warning btn-sm fw-bold shadow-sm">
+                            <i class="bi bi-box-arrow-in-right me-1"></i> Login Pustakawan
+                        </a>
+                    @endauth
                 </div>
             </div>
         </div>

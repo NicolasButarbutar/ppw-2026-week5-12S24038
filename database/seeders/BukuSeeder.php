@@ -236,6 +236,26 @@ class BukuSeeder extends Seeder
                 'stok' => 11,
                 'sinopsis' => 'Filosofi pragmatis dalam rekayasa perangkat lunak, otomatisasi alur kerja, proteksi bug dini, dan mentalitas continuous improvement.',
             ],
+            [
+                'isbn' => '978-602-999-000-0',
+                'judul' => 'Sistem Terdistribusi Lanjutan & Komputasi Awan (Sampel Stok Habis 0)',
+                'penulis' => 'Chandro Pardede, S.Kom., M.Sc.',
+                'penerbit' => 'Del Press',
+                'tahun_terbit' => 2024,
+                'kode_kategori' => 'KAT-RPL',
+                'stok' => 0,
+                'sinopsis' => 'Buku referensi arsitektur terdistribusi yang sedang habis seluruh eksemplarnya untuk pengujian penolakan peminjaman & rollback ACID.',
+            ],
+            [
+                'isbn' => '978-602-999-001-7',
+                'judul' => 'Kecerdasan Buatan & Pemrosesan Bahasa Alami (Sampel Stok Kritis 1)',
+                'penulis' => 'Dr. Arnaldo Marulitua Sinaga, S.T., M.InfoTech.',
+                'penerbit' => 'Del Press',
+                'tahun_terbit' => 2025,
+                'kode_kategori' => 'KAT-AI',
+                'stok' => 1,
+                'sinopsis' => 'Buku dengan sisa stok tinggal 1 eksemplar untuk pengujian pencegahan race condition melalui transaksi DB::transaction() dan lockForUpdate().',
+            ],
         ];
 
         foreach ($books as $item) {
