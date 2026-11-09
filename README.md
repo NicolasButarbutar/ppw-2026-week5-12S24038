@@ -203,9 +203,10 @@ php artisan test
 
 ## VIII. Galeri Bukti Pengujian Sistematis (7 Skenario Wajib)
 
-Laporan hasil pengujian riil yang diverifikasi secara menyeluruh:
+Laporan hasil pengujian riil yang diverifikasi secara menyeluruh (file tangkapan layar Postman tersimpan pada direktori [`docs/screenshots/`](docs/screenshots/)):
 
 ### Skenario (a): Uji SOAP XML Sukses & SOAP Fault
+![Bukti Pengujian SOAP XML & Fault](docs/screenshots/01-soap-clearance.png)
 1. **SOAP Clearance Check Sukses (`200 OK`)**:
    * **Request**: `POST /soap/sipus` dengan payload `<nim_peminjam>12S24038</nim_peminjam>`.
    * **Respons**: Status `200 OK` mengembalikan `<is_cleared>true</is_cleared>` dan `<active_loans>0</active_loans>`.
@@ -214,29 +215,35 @@ Laporan hasil pengujian riil yang diverifikasi secara menyeluruh:
    * **Respons**: Status `500` mengembalikan amplop `<soap:Fault>` berisi `<faultcode>soap:Client</faultcode>` dan keterangan galat.
 
 ### Skenario (b): Login Bearer Token & Profil Pustakawan
+![Bukti Login Bearer Token & Me Profile](docs/screenshots/02-login-bearer-token.png)
 * **Request**: `POST /api/v1/auth/login` dengan JSON `{"email":"pustakawan@del.ac.id","password":"password123"}`.
 * **Respons**: Status `200 OK` mengembalikan `data.access_token` (`1|...[CENSORED]...`).
 * **Verifikasi Profil**: `GET /api/v1/auth/me` dengan `Authorization: Bearer <token>` merespons profil akun pustakawan.
 
 ### Skenario (c): GET Katalog Buku Terpaginasi & HATEOAS Dinamis
+![Bukti GET Katalog Terpaginasi & HATEOAS](docs/screenshots/03-get-katalog-hateoas.png)
 * **Request**: `GET /api/v1/bukus?per_page=5&sort=stok&dir=desc&tersedia=1`.
 * **Respons**: Status `200 OK` memuat data array buku, meta paginasi, dan tautan `_links`. Buku dengan stok $> 0$ menampilkan link `pinjam_buku`.
 
 ### Skenario (d): POST Buku Baru (201 Created + Header Location)
+![Bukti POST Buku 201 Created & Location](docs/screenshots/04-post-buku-location.png)
 * **Request**: `POST /api/v1/bukus` dengan Bearer Token dan data buku lengkap.
 * **Respons**: Status `201 Created` dan header `Location: http://localhost:8000/api/v1/bukus/{id}`.
 
 ### Skenario (e): Bukti Nyata Perbedaan Semantik PUT vs PATCH
+![Bukti Semantik PUT vs PATCH](docs/screenshots/05-put-vs-patch.png)
 * **PATCH `/api/v1/bukus/{id}`**: Mengirim `{"stok": 15}` -> Hanya stok yang berubah; judul, penulis, penerbit, dan sinopsis tetap utuh.
 * **PUT `/api/v1/bukus/{id}`**: Mengirim representasi lengkap tanpa menyertakan kolom opsional `sinopsis` -> Seluruh baris ditimpa dan `sinopsis` direset menjadi `null`.
 
 ### Skenario (f): Peminjaman Sukses & Penolakan Stok Habis (422) serta Duplikasi (409)
+![Bukti Peminjaman ACID & Penolakan 422 409](docs/screenshots/06-peminjaman-acid.png)
 * **Peminjaman Sukses**: `POST /api/v1/peminjamans` -> Status `201 Created`, stok buku berkurang otomatis secara atomik.
 * **Penolakan Duplikasi**: Mahasiswa dengan NIM sama meminjam buku yang sama saat pinjaman lama belum dikembalikan -> Ditolak dengan status `409 Conflict` (RFC 7807).
 * **Penolakan Stok Habis**: Saat stok buku mencapai 0 -> Ditolak dengan status `422 Unprocessable Content` (RFC 7807).
 * **Pengembalian Buku**: `PATCH /api/v1/peminjamans/{id}/kembalikan` -> Status `200 OK`, status menjadi `'dikembalikan'` dan stok buku pulih (+1). Percobaan pengembalian ulang ditolak dengan status `409 Conflict`.
 
 ### Skenario (g): Bukti Latihan GitHub REST API (Token Disensor) & Konsumsi OpenLibrary
+![Bukti Latihan GitHub API & OpenLibrary Consumer](docs/screenshots/07-github-consumer.png)
 1. **Latihan Eksplorasi GitHub REST API (Lab 2 — Token Disensor)**:
    * **cURL Request Profil Publik**:
      ```bash
