@@ -475,7 +475,7 @@
       ]
     },
     {
-      "name": "05. REST Consumer - OpenLibrary API",
+      "name": "05. REST Consumer - OpenLibrary & GitHub API",
       "item": [
         {
           "name": "05.1 GET Referensi Eksternal Buku (200 OK)",
@@ -486,6 +486,18 @@
               "raw": "{{base_url}}/bukus/1/referensi-eksternal",
               "host": ["{{base_url}}"],
               "path": ["bukus", "1", "referensi-eksternal"]
+            }
+          }
+        },
+        {
+          "name": "05.2 GET Portfolio GitHub Mahasiswa (200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/portfolios/github/octocat",
+              "host": ["{{base_url}}"],
+              "path": ["portfolios", "github", "octocat"]
             }
           }
         }

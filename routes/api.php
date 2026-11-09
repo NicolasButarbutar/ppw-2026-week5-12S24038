@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AuthTokenController;
 use App\Http\Controllers\Api\V1\BukuApiController;
+use App\Http\Controllers\Api\V1\GithubPortfolioController;
 use App\Http\Controllers\Api\V1\PeminjamanApiController;
 use Illuminate\Support\Facades\Route;
 
@@ -16,6 +17,7 @@ Route::prefix('v1')->group(function () {
     // 1. ENDPOINT PUBLIK
     // =========================================================================
     Route::post('/auth/login', [AuthTokenController::class, 'login']);
+    Route::get('/portfolios/github/{username}', [GithubPortfolioController::class, 'show']);
 
     // Katalog Buku & Detail (Publik)
     Route::get('/bukus', [BukuApiController::class, 'index']);

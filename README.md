@@ -14,6 +14,7 @@ Pengembangan Lanjutan Sistem Informasi Perpustakaan Kampus Del (**SIPUS-Del Taha
 ## Identitas Diri Mahasiswa
 - **Nama** : `Nicolas J Grace Butarbutar`
 - **NIM** : `12S24038`
+- **Kelas** : `12S1 (Angkatan 2024)`
 - **Program Studi** : `S1 Sistem Informasi`
 - **Mata Kuliah** : `Pemrograman & Pengujian Web (12S3101)`
 - **Dosen Pengampu** : `Chandro Pardede, S.Kom., M.Sc.`
@@ -235,9 +236,45 @@ Laporan hasil pengujian riil yang diverifikasi secara menyeluruh:
 * **Penolakan Stok Habis**: Saat stok buku mencapai 0 -> Ditolak dengan status `422 Unprocessable Content` (RFC 7807).
 * **Pengembalian Buku**: `PATCH /api/v1/peminjamans/{id}/kembalikan` -> Status `200 OK`, status menjadi `'dikembalikan'` dan stok buku pulih (+1). Percobaan pengembalian ulang ditolak dengan status `409 Conflict`.
 
-### Skenario (g): REST Service Consumer ke OpenLibrary REST API
-* **Request**: `GET /api/v1/bukus/{id}/referensi-eksternal`.
-* **Respons**: Status `200 OK` menyajikan data pengayaan metadata dari OpenLibrary (jumlah halaman, penerbit, cover, url pratinjau) yang diambil melalui fasad `Http`.
+### Skenario (g): Bukti Latihan GitHub REST API (Token Disensor) & Konsumsi OpenLibrary
+1. **Latihan Eksplorasi GitHub REST API (Lab 2 — Token Disensor)**:
+   * **cURL Request Profil Publik**:
+     ```bash
+     curl.exe -i -H "Accept: application/vnd.github+json" https://api.github.com/users/octocat
+     ```
+   * **PATCH /user dengan Bearer Personal Access Token (PAT)**:
+     * Header: `Authorization: Bearer ghp_************************************` *(Tersensor demi keamanan)*
+     * Header: `Accept: application/vnd.github+json`
+     * Body JSON:
+       ```json
+       {
+           "bio": "Mahasiswa S1 Sistem Informasi IT Del — Praktikum REST API Minggu 9"
+       }
+       ```
+     * Status: `200 OK` (Limit rate meningkat menjadi 5000 request/jam dan profil GitHub terbarui).
+2. **Konsumsi REST API Eksternal dari Kode Laravel (OpenLibrary API)**:
+   * **Endpoint**: `GET /api/v1/bukus/{id}/referensi-eksternal`
+   * **Status**: `200 OK`
+   * **Respons Payload**:
+     ```json
+     {
+         "success": true,
+         "message": "Metadata buku eksternal berhasil diambil dari OpenLibrary API.",
+         "data": {
+             "isbn": "0201633612",
+             "judul_lokal": "Design Patterns",
+             "sumber": "OpenLibrary REST API",
+             "openlibrary_url": "https://openlibrary.org/books/OL123M",
+             "judul_eksternal": "Design Patterns: Elements of Reusable Object-Oriented Software",
+             "jumlah_halaman": 395,
+             "penerbit": ["Addison-Wesley Professional"],
+             "tahun_terbit": "1994"
+         }
+     }
+     ```
+3. **Endpoint Portfolio GitHub Laravel Client**:
+   * **Endpoint**: `GET /api/v1/portfolios/github/{username}`
+   * **Status**: `200 OK` (Mengembalikan portofolio repositori publik mahasiswa via `Http` Facade).
 
 ---
 
