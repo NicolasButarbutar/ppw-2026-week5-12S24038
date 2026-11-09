@@ -8,6 +8,7 @@ use App\Models\Buku;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 
 class BukuApiController extends Controller
 {
@@ -214,5 +215,97 @@ class BukuApiController extends Controller
         $buku->delete();
 
         return $this->noContentResponse();
+    }
+
+    /**
+     * GET /api/v1/bukus/{id}/referensi-eksternal
+     * Menjadi REST Service Consumer: Mengambil metadata tambahan dari OpenLibrary API
+     */
+    public function referensiEksternal(string $id): JsonResponse
+    {
+        $buku = Buku::find($id);
+
+        if (!$buku) {
+            return $this->problemResponse(
+                title: 'Resource Not Found',
+                detail: "Buku dengan ID '{$id}' tidak ditemukan.",
+                status: 404,
+                errorSlug: 'book-not-found'
+            );
+        }
+
+        // Bersihkan ISBN
+        $cleanIsbn = preg_replace('/[^0-9X]/i', '', (string) $buku->isbn);
+
+        try {
+            $response = Http::timeout(8)
+                ->acceptJson()
+                ->withoutVerifying()
+                ->get('https://openlibrary.org/api/books', [
+                    'bibkeys' => "ISBN:{$cleanIsbn}",
+                    'format' => 'json',
+                    'jscmd' => 'data',
+                ]);
+
+            if ($response->status() === 404) {
+                return $this->problemResponse(
+                    title: 'External Resource Not Found',
+                    detail: "Metadata eksternal untuk ISBN '{$buku->isbn}' tidak ditemukan di OpenLibrary.",
+                    status: 404,
+                    errorSlug: 'external-book-not-found'
+                );
+            }
+
+            if ($response->failed()) {
+                return $this->problemResponse(
+                    title: 'Bad Gateway',
+                    detail: 'Gagal berkomunikasi dengan layanan eksternal OpenLibrary API.',
+                    status: 502,
+                    errorSlug: 'external-service-error'
+                );
+            }
+
+            $json = $response->json();
+            $bibKey = "ISBN:{$cleanIsbn}";
+
+            if (empty($json) || !isset($json[$bibKey])) {
+                return $this->successResponse(
+                    data: [
+                        'isbn' => $buku->isbn,
+                        'judul_lokal' => $buku->judul,
+                        'sumber' => 'OpenLibrary REST API',
+                        'status_pencarian' => 'Data tidak ditemukan di katalog OpenLibrary',
+                        'metadata' => null,
+                    ],
+                    message: 'Pencarian metadata eksternal selesai (tidak ada data tambahan di OpenLibrary).'
+                );
+            }
+
+            $ext = $json[$bibKey];
+
+            return $this->successResponse(
+                data: [
+                    'isbn' => $buku->isbn,
+                    'judul_lokal' => $buku->judul,
+                    'sumber' => 'OpenLibrary REST API',
+                    'openlibrary_url' => $ext['url'] ?? null,
+                    'judul_eksternal' => $ext['title'] ?? null,
+                    'subjudul' => $ext['subtitle'] ?? null,
+                    'jumlah_halaman' => $ext['number_of_pages'] ?? null,
+                    'penerbit' => isset($ext['publishers']) ? collect($ext['publishers'])->pluck('name')->all() : [],
+                    'tahun_terbit' => $ext['publish_date'] ?? null,
+                    'pratinjau_url' => $ext['preview_url'] ?? null,
+                    'cover' => $ext['cover'] ?? null,
+                ],
+                message: 'Metadata buku eksternal berhasil diambil dari OpenLibrary API.'
+            );
+        } catch (\Throwable $e) {
+            return $this->problemResponse(
+                title: 'Gateway Timeout / Network Error',
+                detail: 'Koneksi ke OpenLibrary API mengalami gangguan atau batas waktu tercapai (timeout).',
+                status: 504,
+                errorSlug: 'external-service-timeout'
+            );
+        }
     }
 }
