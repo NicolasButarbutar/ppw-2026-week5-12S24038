@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BukuController;
 use App\Http\Controllers\KategoriController;
 use App\Http\Controllers\PeminjamanController;
+use App\Http\Controllers\Soap\LibrarySoapController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -56,3 +57,10 @@ Route::middleware('auth')->group(function () {
 // Detail Publik (ditempatkan setelah route /create agar tidak tumpang tindih)
 Route::get('buku/{buku}', [BukuController::class, 'show'])->name('buku.show');
 Route::get('kategori/{kategori}', [KategoriController::class, 'show'])->name('kategori.show');
+
+// =========================================================================
+// Rute SOAP Web Service Legacy (Yudisium Clearance Check)
+// =========================================================================
+Route::get('/soap/sipus.wsdl', [LibrarySoapController::class, 'wsdl'])->name('soap.sipus.wsdl');
+Route::post('/soap/sipus', [LibrarySoapController::class, 'handle'])->name('soap.sipus.handle');
+
