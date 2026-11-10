@@ -203,66 +203,49 @@ php artisan test
 
 ## VIII. Galeri Bukti Pengujian Sistematis (7 Skenario Wajib)
 
-Laporan hasil pengujian riil yang diverifikasi secara menyeluruh (file tangkapan layar Postman tersimpan pada direktori [`docs/screenshots/`](docs/screenshots/)):
+Seluruh bukti pengujian berikut diambil langsung dari eksekusi nyata pada aplikasi Postman Desktop dan tersimpan di dalam direktori [`docs/screenshots/`](docs/screenshots/):
 
-### Skenario (a): Uji SOAP XML Sukses & SOAP Fault
-![Bukti Pengujian SOAP XML & Fault](docs/screenshots/01-soap-clearance.png)
-1. **SOAP Clearance Check Sukses (`200 OK`)**:
-   * **Request**: `POST /soap/sipus` dengan payload `<nim_peminjam>12S24038</nim_peminjam>`.
-   * **Respons**: Status `200 OK` mengembalikan `<is_cleared>true</is_cleared>` dan `<active_loans>0</active_loans>`.
-2. **SOAP Fault Error (`500 Internal Server Error`)**:
-   * **Request**: `POST /soap/sipus` dengan tag `<nim_peminjam>` kosong.
-   * **Respons**: Status `500` mengembalikan amplop `<soap:Fault>` berisi `<faultcode>soap:Client</faultcode>` dan keterangan galat.
+### Skenario 1: Autentikasi Login Pustakawan & Penerbitan Bearer Token (Sanctum)
+![Bukti Login Bearer Token](docs/screenshots/01-auth-login.png)
+* **Endpoint**: `POST /api/v1/auth/login`
+* **Status**: `200 OK`
+* **Analisis & Hasil**: Kredensial pustakawan (`pustakawan@del.ac.id`) diverifikasi dan sistem menerbitkan personal access token stateless Sanctum (`data.access_token`) yang otomatis digunakan sebagai otorisasi pada transaksi sirkulasi perpustakaan.
 
-### Skenario (b): Login Bearer Token & Profil Pustakawan
-![Bukti Login Bearer Token & Me Profile](docs/screenshots/02-login-bearer-token.png)
-* **Request**: `POST /api/v1/auth/login` dengan JSON `{"email":"pustakawan@del.ac.id","password":"password123"}`.
-* **Respons**: Status `200 OK` mengembalikan `data.access_token` (`1|...[CENSORED]...`).
-* **Verifikasi Profil**: `GET /api/v1/auth/me` dengan `Authorization: Bearer <token>` merespons profil akun pustakawan.
+### Skenario 2: Katalog Buku Terpaginasi & Representasi HATEOAS Dinamis
+![Bukti Katalog Buku & HATEOAS](docs/screenshots/02-katalog-buku-hateoas.png)
+* **Endpoint**: `GET /api/v1/bukus`
+* **Status**: `200 OK`
+* **Analisis & Hasil**: Mengembalikan representasi koleksi buku terpaginasi (tanpa masalah query $N+1$). Setiap item menyertakan relasi kategori dan tautan HATEOAS dinamis `_links` (tautan `pinjam_buku` otomatis aktif jika stok buku $> 0$).
 
-### Skenario (c): GET Katalog Buku Terpaginasi & HATEOAS Dinamis
-![Bukti GET Katalog Terpaginasi & HATEOAS](docs/screenshots/03-get-katalog-hateoas.png)
-* **Request**: `GET /api/v1/bukus?per_page=5&sort=stok&dir=desc&tersedia=1`.
-* **Respons**: Status `200 OK` memuat data array buku, meta paginasi, dan tautan `_links`. Buku dengan stok $> 0$ menampilkan link `pinjam_buku`.
+### Skenario 3: Transaksi Peminjaman Buku ACID Sukses (Pessimistic Locking)
+![Bukti Peminjaman ACID Sukses](docs/screenshots/03-peminjaman-acid-success.png)
+* **Endpoint**: `POST /api/v1/peminjamans`
+* **Status**: `201 Created`
+* **Analisis & Hasil**: Transaksi peminjaman diproses secara atomik di dalam blok `DB::transaction()` dengan `lockForUpdate()`. Stok buku target otomatis didekrementasi (-1), riwayat sirkulasi tercatat, dan respon menyertakan tautan HATEOAS `kembalikan_buku`.
 
-### Skenario (d): POST Buku Baru (201 Created + Header Location)
-![Bukti POST Buku 201 Created & Location](docs/screenshots/04-post-buku-location.png)
-* **Request**: `POST /api/v1/bukus` dengan Bearer Token dan data buku lengkap.
-* **Respons**: Status `201 Created` dan header `Location: http://localhost:8000/api/v1/bukus/{id}`.
+### Skenario 4: Penanganan Galat Standar RFC 7807 (409 Conflict Duplikasi Pinjaman)
+![Bukti Error RFC 7807 Conflict](docs/screenshots/04-error-rfc7807-conflict.png)
+* **Endpoint**: `POST /api/v1/peminjamans`
+* **Status**: `409 Conflict` (dengan header `Content-Type: application/problem+json`)
+* **Analisis & Hasil**: Ketika mahasiswa dengan NIM yang sama mencoba meminjam kembali buku yang masih aktif dipinjam, sistem menolak transaksi secara atomik dan mengembalikan format problem details baku RFC 7807 memuat `type`, `title`, `status: 409`, `detail`, dan `instance`.
 
-### Skenario (e): Bukti Nyata Perbedaan Semantik PUT vs PATCH
-![Bukti Semantik PUT vs PATCH](docs/screenshots/05-put-vs-patch.png)
-* **PATCH `/api/v1/bukus/{id}`**: Mengirim `{"stok": 15}` -> Hanya stok yang berubah; judul, penulis, penerbit, dan sinopsis tetap utuh.
-* **PUT `/api/v1/bukus/{id}`**: Mengirim representasi lengkap tanpa menyertakan kolom opsional `sinopsis` -> Seluruh baris ditimpa dan `sinopsis` direset menjadi `null`.
+### Skenario 5: Pengembalian Buku & Pemulihan Stok Buku
+![Bukti Pengembalian Buku & Pemulihan Stok](docs/screenshots/05-pengembalian-buku.png)
+* **Endpoint**: `PATCH /api/v1/peminjamans/{id}/kembalikan`
+* **Status**: `200 OK`
+* **Analisis & Hasil**: Status peminjaman berhasil diperbarui menjadi `'dikembalikan'`, timestamp `tanggal_kembali` dicatat, dan kuota stok buku secara atomik dipulihkan (+1). Percobaan pengembalian ulang ditolak dengan status `409 Conflict`.
 
-### Skenario (f): Peminjaman Sukses & Penolakan Stok Habis (422) serta Duplikasi (409)
-![Bukti Peminjaman ACID & Penolakan 422 409](docs/screenshots/06-peminjaman-acid.png)
-* **Peminjaman Sukses**: `POST /api/v1/peminjamans` -> Status `201 Created`, stok buku berkurang otomatis secara atomik.
-* **Penolakan Duplikasi**: Mahasiswa dengan NIM sama meminjam buku yang sama saat pinjaman lama belum dikembalikan -> Ditolak dengan status `409 Conflict` (RFC 7807).
-* **Penolakan Stok Habis**: Saat stok buku mencapai 0 -> Ditolak dengan status `422 Unprocessable Content` (RFC 7807).
-* **Pengembalian Buku**: `PATCH /api/v1/peminjamans/{id}/kembalikan` -> Status `200 OK`, status menjadi `'dikembalikan'` dan stok buku pulih (+1). Percobaan pengembalian ulang ditolak dengan status `409 Conflict`.
+### Skenario 6: Integrasi Konsumen REST API Eksternal (OpenLibrary API)
+![Bukti Integrasi Eksternal OpenLibrary](docs/screenshots/06-external-openlibrary.png)
+* **Endpoint**: `GET /api/v1/bukus/{id}/referensi-eksternal`
+* **Status**: `200 OK`
+* **Analisis & Hasil**: Backend SIPUS-Del bertindak sebagai REST Consumer menggunakan Laravel `Http` client dengan konfigurasi `User-Agent` resmi dan proteksi batas waktu (*timeout*), berhasil menarik metadata bibliografi (judul eksternal, penerbit, cover, jumlah halaman) langsung dari OpenLibrary REST API.
 
-### Skenario (g): Bukti Latihan GitHub REST API (Token Disensor) & Konsumsi OpenLibrary
-![Bukti Latihan GitHub API & OpenLibrary Consumer](docs/screenshots/07-github-consumer.png)
-1. **Latihan Eksplorasi GitHub REST API (Lab 2 — Token Disensor)**:
-   * **cURL Request Profil Publik**:
-     ```bash
-     curl.exe -i -H "Accept: application/vnd.github+json" https://api.github.com/users/octocat
-     ```
-   * **PATCH /user dengan Bearer Personal Access Token (PAT)**:
-     * Header: `Authorization: Bearer ghp_************************************` *(Tersensor demi keamanan)*
-     * Header: `Accept: application/vnd.github+json`
-     * Body JSON:
-       ```json
-       {
-           "bio": "Mahasiswa S1 Sistem Informasi IT Del — Praktikum REST API Minggu 9"
-       }
-       ```
-     * Status: `200 OK` (Limit rate meningkat menjadi 5000 request/jam dan profil GitHub terbarui).
-2. **Konsumsi REST API Eksternal dari Kode Laravel (OpenLibrary API)**:
-   * **Endpoint**: `GET /api/v1/bukus/{id}/referensi-eksternal`
-   * **Status**: `200 OK`
-   * **Respons Payload**:
+### Skenario 7: Layanan SOAP Web Service Legacy Cek Bebas Pustaka Mahasiswa
+![Bukti SOAP Service Clearance](docs/screenshots/07-soap-service-clearance.png)
+* **Endpoint**: `POST /soap/sipus` (didukung kontrak `GET /soap/sipus.wsdl`)
+* **Status**: `200 OK`
+* **Analisis & Hasil**: Memproses payload XML SOAP Envelope berisi `<nim_peminjam>12S24038</nim_peminjam>`. Sistem memeriksa database riwayat peminjaman nyata dan mengembalikan amplop SOAP XML berisi `<is_cleared>true</is_cleared>` serta `<active_loans>0</active_loans>`. Apabila tag NIM dikirimkan kosong, sistem mengembalikan amplop standar `<soap:Fault>`.
      ```json
      {
          "success": true,
